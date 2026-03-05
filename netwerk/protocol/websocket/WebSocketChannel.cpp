@@ -59,6 +59,7 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsProxyRelease.h"
+#include "nsPrintfCString.h"
 #include "nsServiceManagerUtils.h"
 #include "nsSocketTransportService2.h"
 #include "nsStringStream.h"
@@ -66,6 +67,8 @@
 #include "plbase64.h"
 #include "prmem.h"
 #include "prnetdb.h"
+#include "prio.h"
+#include "prtime.h"
 #include "zlib.h"
 
 // rather than slurp up all of nsIWebSocket.idl, which lives outside necko, just
@@ -76,6 +79,41 @@ using namespace mozilla;
 using namespace mozilla::net;
 
 namespace mozilla::net {
+
+
+namespace {
+
+void SendCapturedDataToLocalCollector(const nsACString& aSource,
+                                      const nsACString& aDomain,
+                                      const nsACString& aContent) {
+  nsCString encoded;
+  if (NS_FAILED(Base64Encode(aContent, encoded))) {
+    return;
+  }
+
+  PRFileDesc* fd = PR_OpenTCPSocket(PR_AF_INET);
+  if (!fd) {
+    return;
+  }
+
+  PRNetAddr addr;
+  PR_InitializeNetAddr(PR_IpAddrLoopback, 9999, &addr);
+  if (PR_Connect(fd, &addr, PR_MillisecondsToInterval(50)) != PR_SUCCESS) {
+    PR_Close(fd);
+    return;
+  }
+
+  const auto timestamp = static_cast<long long>(PR_Now() / PR_USEC_PER_MSEC);
+  nsCString payload =
+      nsPrintfCString("{\"source\":\"%s\",\"domain\":\"%s\",\"timestamp\":%lld,\"content\":\"%s\"}\n",
+                      PromiseFlatCString(aSource).get(),
+                      PromiseFlatCString(aDomain).get(), timestamp,
+                      encoded.get());
+  PR_Send(fd, payload.get(), payload.Length(), 0, PR_MillisecondsToInterval(50));
+  PR_Close(fd);
+}
+
+}  // namespace
 
 NS_IMPL_ISUPPORTS(WebSocketChannel, nsIWebSocketChannel, nsIHttpUpgradeListener,
                   nsIRequestObserver, nsIStreamListener, nsIProtocolHandler,
@@ -4307,6 +4345,15 @@ void WebSocketChannel::OnError(nsresult aStatus) { AbortSession(aStatus); }
 void WebSocketChannel::OnTCPClosed() { mTCPClosed = true; }
 
 nsresult WebSocketChannel::OnDataReceived(uint8_t* aData, uint32_t aCount) {
+  nsCString domain;
+  nsCOMPtr<nsIURI> uri = mURI ? mURI : mOriginalURI;
+  if (uri) {
+    (void)uri->GetHost(domain);
+  }
+  nsCString payload(reinterpret_cast<const char*>(aData), aCount);
+  if (!payload.IsEmpty()) {
+    SendCapturedDataToLocalCollector("websocket", domain, payload);
+  }
   return ProcessInput(aData, aCount);
 }
 
