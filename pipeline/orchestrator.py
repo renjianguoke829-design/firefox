@@ -12,6 +12,15 @@ import asyncpg
 from rabbit.rabbit_sdk.kernel_bridge import KernelBridge
 
 
+MARXIST_PROMPT = (
+    "问题一：这件事涉及哪些阶级主体？各自的物质利益是什么？\n"
+    "问题二：表面现象背后的生产关系矛盾是什么？\n"
+    "问题三：国家机器在这个矛盾中处于什么位置？服务于谁？\n"
+    "问题四：这个矛盾的历史走向是什么？会如何激化或转化？"
+)
+CONTROL_PROMPT = "请从自由主义与常见反驳角度分析，避免使用马列框架。"
+
+
 class PipelineOrchestrator:
     def __init__(self, config_path: str = "pipeline/config.json") -> None:
         self.config_path = Path(config_path)
@@ -35,52 +44,122 @@ class PipelineOrchestrator:
     ) -> list[dict[str, Any]]:
         await self.kernel_bridge.connect()
         pipeline = self._get_pipeline(pipeline_name)
-        stage_outputs: list[dict[str, Any]] = []
+        stages = pipeline.get("stages", [])[:5]
         stage_input = initial_input
+        outputs: list[dict[str, Any]] = []
 
-        for index, stage in enumerate(pipeline.get("stages", []), start=1):
+        for stage_index, stage in enumerate(stages, start=1):
+            stage_name = str(stage.get("name", f"stage-{stage_index}"))
             started = time.perf_counter()
-            stage_name = stage.get("name", f"stage-{index}")
-            command_payload = {
-                "pipeline": pipeline_name,
-                "stage_index": index,
-                "stage_name": stage_name,
-                "input": stage_input,
-            }
-            command_result = await self.kernel_bridge.send_command("start_stage", command_payload)
-            output_result = await self.kernel_bridge.wait_output(
-                conversation_id=f"{pipeline_name}:{index}",
-                timeout=120,
+            marxist_task = self._run_version(
+                pipeline_name=pipeline_name,
+                stage_name=stage_name,
+                stage_index=stage_index,
+                version="marxist",
+                input_text=stage_input,
+                system_prompt=MARXIST_PROMPT,
             )
-            duration_ms = int((time.perf_counter() - started) * 1000)
+            control_task = self._run_version(
+                pipeline_name=pipeline_name,
+                stage_name=stage_name,
+                stage_index=stage_index,
+                version="control",
+                input_text=stage_input,
+                system_prompt=CONTROL_PROMPT,
+            )
+            marxist_result, control_result = await asyncio.gather(marxist_task, control_task)
+            elapsed = int((time.perf_counter() - started) * 1000)
 
             stage_record = {
-                "index": index,
-                "stage": stage_name,
-                "command_result": command_result,
-                "output_result": output_result,
+                "stage_index": stage_index,
+                "stage_name": stage_name,
+                "workstations": 2,
+                "results": {
+                    "marxist": marxist_result,
+                    "control": control_result,
+                },
+                "duration_ms": elapsed,
             }
-            stage_outputs.append(stage_record)
+            outputs.append(stage_record)
 
             await self._write_pipeline_log(
                 pipeline_name=pipeline_name,
-                stage=stage_name,
-                ai_model=str(stage.get("ai_model", "kernel")),
-                project_name=str(stage.get("project_name", pipeline_name)),
+                stage=f"{stage_name}:checkpoint",
+                ai_model="dual-runner",
+                project_name=pipeline_name,
                 input_text=stage_input,
-                output_text=json.dumps(output_result, ensure_ascii=False),
-                duration_ms=duration_ms,
-                quality_score=int(stage.get("quality_score", 0)),
+                output_text=json.dumps(stage_record, ensure_ascii=False),
+                duration_ms=elapsed,
+                quality_score=0,
             )
 
             if require_confirm is not None:
-                approved = require_confirm(stage_record)
-                if not approved:
+                if not require_confirm(stage_record):
                     break
 
-            stage_input = output_result.get("output", stage_input)
+            stage_input = marxist_result.get("output") or control_result.get("output") or stage_input
 
-        return stage_outputs
+        return outputs
+
+    async def trigger_decision_assistant(self, prompt: str) -> dict[str, Any]:
+        await self.kernel_bridge.connect()
+        command = await self.kernel_bridge.send_command(
+            "decision_assistant",
+            {
+                "workstation": 11,
+                "prompt": prompt,
+            },
+        )
+        output = await self.kernel_bridge.wait_output(conversation_id="decision_assistant", timeout=90)
+        merged = {"command": command, "output": output}
+        await self._write_pipeline_log(
+            pipeline_name="decision_assistant",
+            stage="assistant",
+            ai_model="decision-assistant",
+            project_name="independent",
+            input_text=prompt,
+            output_text=json.dumps(merged, ensure_ascii=False),
+            duration_ms=0,
+            quality_score=0,
+        )
+        return merged
+
+    async def _run_version(
+        self,
+        pipeline_name: str,
+        stage_name: str,
+        stage_index: int,
+        version: str,
+        input_text: str,
+        system_prompt: str,
+    ) -> dict[str, Any]:
+        run_id = f"{pipeline_name}:{stage_index}:{version}"
+        started = time.perf_counter()
+        command_payload = {
+            "pipeline": pipeline_name,
+            "stage": stage_name,
+            "stage_index": stage_index,
+            "version": version,
+            "workstation": (stage_index - 1) * 2 + (1 if version == "marxist" else 2),
+            "system_prompt": system_prompt,
+            "input": input_text,
+        }
+        command_result = await self.kernel_bridge.send_command("start_stage_version", command_payload)
+        output_result = await self.kernel_bridge.wait_output(conversation_id=run_id, timeout=120)
+        duration_ms = int((time.perf_counter() - started) * 1000)
+
+        merged = {"command": command_result, **output_result}
+        await self._write_pipeline_log(
+            pipeline_name=pipeline_name,
+            stage=f"{stage_name}:{version}",
+            ai_model=f"kernel-{version}",
+            project_name=pipeline_name,
+            input_text=input_text,
+            output_text=json.dumps(merged, ensure_ascii=False),
+            duration_ms=duration_ms,
+            quality_score=0,
+        )
+        return merged
 
     def _get_pipeline(self, pipeline_name: str) -> dict[str, Any]:
         pipelines = self._config.get("pipelines", [])
@@ -128,8 +207,7 @@ async def run_with_terminal_confirmation(pipeline_name: str, initial_input: str)
     orchestrator = PipelineOrchestrator()
 
     def _confirm(stage_record: dict[str, Any]) -> bool:
-        stage_title = f"[{stage_record['index']}] {stage_record['stage']}"
-        print(f"Stage completed: {stage_title}")
+        print(f"Stage finished: {stage_record['stage_name']} ({stage_record['stage_index']}/5)")
         answer = input("Confirm next stage? (yes/no): ").strip().lower()
         return answer in {"y", "yes"}
 
