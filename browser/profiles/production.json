@@ -1,0 +1,21 @@
+{
+  "profile_id": "21e3120f-7804-447e-a038-ad2e18a3e9e5",
+  "navigator.platform": "Linux x86_64",
+  "navigator.userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+  "navigator.language": "zh-CN",
+  "navigator.hardwareConcurrency": 4,
+  "navigator.deviceMemory": 8,
+  "screen.width": 1920,
+  "screen.height": 1080,
+  "screen.colorDepth": 24,
+  "timezone": "Asia/Shanghai",
+  "canvas.noiseSeed": 70046342,
+  "webgl.renderer": "ANGLE",
+  "webgl.vendor": "Google Inc.",
+  "fonts": [
+    "Noto Sans",
+    "PingFang SC",
+    "Helvetica"
+  ],
+  "battery.random": 0.3605
+}

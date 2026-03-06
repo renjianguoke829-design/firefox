@@ -1,0 +1,21 @@
+{
+  "profile_id": "c5229a2b-4f95-437c-a965-18a5cea16509",
+  "navigator.platform": "iPhone",
+  "navigator.userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X; rv:128.0) Gecko/20100101 Firefox/128.0",
+  "navigator.language": "en-GB",
+  "navigator.hardwareConcurrency": 6,
+  "navigator.deviceMemory": 6,
+  "screen.width": 1179,
+  "screen.height": 2556,
+  "screen.colorDepth": 24,
+  "timezone": "Europe/London",
+  "canvas.noiseSeed": 50985528,
+  "webgl.renderer": "Apple GPU",
+  "webgl.vendor": "Apple",
+  "fonts": [
+    "SF Pro Text",
+    "Helvetica",
+    "Arial"
+  ],
+  "battery.random": 0.5227
+}
