@@ -76,6 +76,19 @@ let JSPROCESSACTORS = {
  * available at https://firefox-source-docs.mozilla.org/dom/ipc/jsactors.html
  */
 let JSWINDOWACTORS = {
+  ProductionSystem: {
+    parent: {
+      esModuleURI: "resource:///actors/ProductionSystemParent.sys.mjs",
+    },
+    child: {
+      esModuleURI: "resource:///actors/ProductionSystemChild.sys.mjs",
+      events: {},
+    },
+    matches: ["*://*/*"],
+    remoteTypes: ["web"],
+    allFrames: false,
+  },
+
   Megalist: {
     parent: {
       esModuleURI: "resource://gre/actors/MegalistParent.sys.mjs",

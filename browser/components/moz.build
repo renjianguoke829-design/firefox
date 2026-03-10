@@ -53,6 +53,7 @@ DIRS += [
     "pagedata",
     "permissions",
     "places",
+    "productionSystem",
     "preferences",
     "privatebrowsing",
     "prompts",

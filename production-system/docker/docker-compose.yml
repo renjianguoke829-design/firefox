@@ -1,0 +1,57 @@
+version: '3.9'
+
+networks:
+  production-net:
+    name: production-net
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: production-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: production
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - production-net
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: production-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - production-net
+
+  qinglong:
+    image: whyour/qinglong:latest
+    container_name: production-qinglong
+    restart: unless-stopped
+    ports:
+      - "5700:5700"
+    volumes:
+      - ./data/qinglong:/ql/data
+    networks:
+      - production-net
+
+  ttyd:
+    image: tsl0922/ttyd:latest
+    container_name: production-ttyd
+    restart: unless-stopped
+    command: ["ttyd", "-W", "bash"]
+    ports:
+      - "7681:7681"
+    networks:
+      - production-net

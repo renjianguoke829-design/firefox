@@ -50,6 +50,8 @@
 #include "nsNetUtil.h"
 #include "nsIStreamTransportService.h"
 #include "prnetdb.h"
+#include "prio.h"
+#include "prtime.h"
 #include "nsEscape.h"
 #include "nsComponentManagerUtils.h"
 #include "nsStreamUtils.h"
@@ -67,6 +69,7 @@
 #include "mozilla/AntiTrackingRedirectHeuristic.h"
 #include "mozilla/AntiTrackingUtils.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/Base64.h"
 #include "mozilla/BasePrincipal.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/PerfStats.h"
@@ -10714,6 +10717,41 @@ nsresult nsHttpChannel::ContinueOnStopRequest(nsresult aStatus, bool aIsFromNet,
 // nsHttpChannel::nsIStreamListener
 //-----------------------------------------------------------------------------
 
+
+namespace {
+
+void SendCapturedDataToLocalCollector(const nsACString& aSource,
+                                      const nsACString& aDomain,
+                                      const nsACString& aContent) {
+  nsCString encoded;
+  if (NS_FAILED(Base64Encode(aContent, encoded))) {
+    return;
+  }
+
+  PRFileDesc* fd = PR_OpenTCPSocket(PR_AF_INET);
+  if (!fd) {
+    return;
+  }
+
+  PRNetAddr addr;
+  PR_InitializeNetAddr(PR_IpAddrLoopback, 9999, &addr);
+  if (PR_Connect(fd, &addr, PR_MillisecondsToInterval(50)) != PR_SUCCESS) {
+    PR_Close(fd);
+    return;
+  }
+
+  const auto timestamp = static_cast<long long>(PR_Now() / PR_USEC_PER_MSEC);
+  nsCString payload =
+      nsPrintfCString("{\"source\":\"%s\",\"domain\":\"%s\",\"timestamp\":%lld,\"content\":\"%s\"}\n",
+                      PromiseFlatCString(aSource).get(),
+                      PromiseFlatCString(aDomain).get(), timestamp,
+                      encoded.get());
+  PR_Send(fd, payload.get(), payload.Length(), 0, PR_MillisecondsToInterval(50));
+  PR_Close(fd);
+}
+
+}  // namespace
+
 class OnTransportStatusAsyncEvent : public Runnable {
  public:
   OnTransportStatusAsyncEvent(nsITransportEventSink* aEventSink,
@@ -10773,6 +10811,22 @@ nsHttpChannel::OnDataAvailable(nsIRequest* request, nsIInputStream* input,
              "transaction pump not suspended");
 
   mIsReadingFromCache = (request == mCachePump);
+
+  nsCString capturedData;
+  nsCString domain;
+  if (mURI) {
+    (void)mURI->GetHost(domain);
+  }
+  nsCOMPtr<nsISeekableStream> captureSeekable = do_QueryInterface(input);
+  int64_t captureOffset = 0;
+  if (captureSeekable && NS_SUCCEEDED(captureSeekable->Tell(&captureOffset))) {
+    if (NS_SUCCEEDED(NS_ConsumeStream(input, count, capturedData))) {
+      (void)captureSeekable->Seek(nsISeekableStream::NS_SEEK_SET, captureOffset);
+    }
+  }
+  if (!capturedData.IsEmpty()) {
+    SendCapturedDataToLocalCollector("http", domain, capturedData);
+  }
 
   if (mListener) {
     //
