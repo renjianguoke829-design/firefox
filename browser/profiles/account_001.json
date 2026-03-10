@@ -1,0 +1,21 @@
+{
+  "profile_id": "6045b39b-7bd9-473a-8e30-af3aba7c6fd9",
+  "navigator.platform": "MacIntel",
+  "navigator.userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13.6; rv:128.0) Gecko/20100101 Firefox/128.0",
+  "navigator.language": "en-US",
+  "navigator.hardwareConcurrency": 8,
+  "navigator.deviceMemory": 16,
+  "screen.width": 2560,
+  "screen.height": 1664,
+  "screen.colorDepth": 24,
+  "timezone": "America/Los_Angeles",
+  "canvas.noiseSeed": 94617455,
+  "webgl.renderer": "Apple M2",
+  "webgl.vendor": "Apple",
+  "fonts": [
+    "San Francisco",
+    "Helvetica Neue",
+    "Arial"
+  ],
+  "battery.random": 0.4482
+}

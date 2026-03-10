@@ -1,0 +1,22 @@
+{
+  "profile_id": "057ebccc-c36e-487c-b2a4-fa8d4aebbe73",
+  "navigator.platform": "Win32",
+  "navigator.userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+  "navigator.language": "en-US",
+  "navigator.hardwareConcurrency": 8,
+  "navigator.deviceMemory": 16,
+  "screen.width": 1920,
+  "screen.height": 1080,
+  "screen.colorDepth": 24,
+  "timezone": "America/Chicago",
+  "canvas.noiseSeed": 84229918,
+  "webgl.renderer": "NVIDIA GeForce RTX 3060",
+  "webgl.vendor": "NVIDIA Corporation",
+  "fonts": [
+    "Segoe UI",
+    "Arial",
+    "Calibri",
+    "Times New Roman"
+  ],
+  "battery.random": 0.3085
+}
