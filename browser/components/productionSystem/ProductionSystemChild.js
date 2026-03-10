@@ -58,6 +58,38 @@ function insertContenteditable(win, el, text) {
   range.collapse(false);
 }
 
+
+function sendBackspace(win, el) {
+  el.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Backspace", code: "Backspace", keyCode: 8, which: 8, bubbles: true, cancelable: true }));
+  if (el.isContentEditable || el.contentEditable === "true") {
+    const sel = win.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (!range.collapsed) {
+        range.deleteContents();
+      } else if (range.startContainer.nodeType === win.Node.TEXT_NODE) {
+        const node = range.startContainer;
+        const offset = range.startOffset;
+        if (offset > 0) {
+          node.deleteData(offset - 1, 1);
+          range.setStart(node, offset - 1);
+          range.collapse(true);
+        }
+      }
+    }
+  } else {
+    const pos = typeof el.selectionStart === "number" ? el.selectionStart : (el.value || "").length;
+    if (pos > 0) {
+      const value = el.value || "";
+      el.value = `${value.slice(0, pos - 1)}${value.slice(pos)}`;
+      el.selectionStart = pos - 1;
+      el.selectionEnd = pos - 1;
+    }
+  }
+  el.dispatchEvent(new win.InputEvent("input", { data: null, inputType: "deleteContentBackward", bubbles: true }));
+  el.dispatchEvent(new win.KeyboardEvent("keyup", { key: "Backspace", code: "Backspace", keyCode: 8, which: 8, bubbles: true, cancelable: true }));
+}
+
 function insertInputLike(el, text) {
   const start = typeof el.selectionStart === "number" ? el.selectionStart : el.value.length;
   const current = el.value || "";
@@ -83,6 +115,13 @@ export function injectToReactInput(win, selector, text, delays = []) {
 
     const d = Number(delays[i] ?? 80);
     const ch = text[i];
+    if (d < 0) {
+      sendBackspace(win, el);
+      i += 1;
+      win.setTimeout(typeNext, Math.max(0, Math.abs(d)));
+      return;
+    }
+
     el.dispatchEvent(new win.KeyboardEvent("keydown", { key: ch, bubbles: true, cancelable: true }));
 
     if (el.isContentEditable || el.contentEditable === "true") {
@@ -122,6 +161,12 @@ export function injectToTelegram(win, selector, text, delays = []) {
 
     const d = Number(delays[i] ?? 80);
     const ch = text[i];
+    if (d < 0) {
+      sendBackspace(win, el);
+      i += 1;
+      win.setTimeout(typeNext, Math.max(0, Math.abs(d)));
+      return;
+    }
     win.document.execCommand("insertText", false, ch);
     i += 1;
     win.setTimeout(typeNext, Math.max(0, Math.abs(d)));
