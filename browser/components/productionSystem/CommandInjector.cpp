@@ -3,8 +3,10 @@
 #include "CommandInjector.h"
 
 #include "HumanSimulator.h"
+#include "ProductionSystemParent.h"
 
 #include <algorithm>
+#include <vector>
 
 #include "prnetdb.h"
 #include "prio.h"
@@ -69,24 +71,27 @@ bool CommandInjector::ReadOneCommand(InjectionCommand& outCommand) {
   }
 
   if (!ExtractJsonField(payload, "action", outCommand.action) ||
-      !ExtractJsonField(payload, "selector", outCommand.selector) ||
       !ExtractJsonField(payload, "text", outCommand.text) ||
       !ExtractJsonField(payload, "platform", outCommand.platform)) {
     return false;
   }
 
+  ExtractJsonField(payload, "selector", outCommand.selector);
   return true;
 }
 
 bool CommandInjector::HandleCommand(const InjectionCommand& command) {
-  if (command.action != "input") {
+  if (command.action != "input" && command.action != "inject_prompt") {
     return false;
   }
 
   HumanTypingPlan plan = HumanSimulator::BuildPlan(command.text);
+  std::vector<int> delays;
+  delays.reserve(plan.delaysMs.size());
   for (uint32_t delay : plan.delaysMs) {
-    PR_Sleep(PR_MillisecondsToInterval(delay));
+    delays.push_back(static_cast<int>(delay));
   }
+  ProductionSystemParent::TriggerInject(command.platform, command.text, delays);
 
   return !plan.output.empty();
 }

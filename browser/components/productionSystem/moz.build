@@ -7,9 +7,25 @@ UNIFIED_SOURCES += [
     "HumanSimulator.cpp",
     "PipelineController.cpp",
     "ProxyBridge.cpp",
+    "ProductionSystemParent.cpp",
+    "ProductionSystemChild.cpp",
 ]
 
 FINAL_LIBRARY = "browsercomps"
 
 with Files("**"):
     BUG_COMPONENT = ("Firefox", "General")
+
+EXPORTS.mozilla.browser.production += [
+    "ProductionSystemChild.h",
+    "ProductionSystemParent.h",
+]
+
+FINAL_TARGET_FILES.modules.productionSystem += [
+    "ProductionSystemChild.js",
+]
+
+FINAL_TARGET_FILES.modules.productionSystem.actors += [
+    "actors/ProductionSystemChild.sys.mjs",
+    "actors/ProductionSystemParent.sys.mjs",
+]
